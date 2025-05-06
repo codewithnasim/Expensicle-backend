@@ -5,14 +5,25 @@ const User = require("../models/User");
 const upload = require("../middleware/upload");
 const router = express.Router();
 
-// Register Route
+// Debug middleware
+router.use((req, res, next) => {
+  console.log(`Auth Route: ${req.method} ${req.url}`);
+  console.log("Request Body:", req.body);
+  next();
+});
+
 router.post("/register", upload.single("photo"), async (req, res) => {
+  console.log("Register endpoint hit");
+  console.log("Request body:", req.body);
+  console.log("File:", req.file);
+
   const { fullName, email, password } = req.body;
 
   try {
     const existingUser = await User.findOne({ email });
-    if (existingUser)
+    if (existingUser) {
       return res.status(400).json({ error: "Email already exists" });
+    }
 
     const hashedPass = await bcrypt.hash(password, 10);
     const newUser = new User({
@@ -23,11 +34,15 @@ router.post("/register", upload.single("photo"), async (req, res) => {
     });
 
     await newUser.save();
+    console.log("User saved successfully");
     res.status(201).json({ message: "User Registered Successfully" });
   } catch (err) {
+    console.error("Registration error:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
+// ...existing code...
 
 // Login Route
 router.post("/login", async (req, res) => {

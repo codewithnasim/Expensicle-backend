@@ -15,6 +15,17 @@ app.use(express.urlencoded({ extended: true }));
 // Serve uploaded files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// Add this debug middleware before routes
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
+// Add this after your middleware setup
+app.get("/", (req, res) => {
+  res.json({ message: "Welcome to auth API" });
+});
+
 // Routes
 app.use("/auth", authRoutes);
 
