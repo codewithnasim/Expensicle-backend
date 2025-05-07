@@ -12,12 +12,27 @@ router.use((req, res, next) => {
   next();
 });
 
+// Middleware to verify JWT token
+const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1]; // Bearer <token>
+  if (!token) {
+    return res.status(401).json({ error: "Access denied. No token provided." });
+  }
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "codewithnasim"
+    );
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid token." });
+  }
+};
+
 // Register Route
 router.post("/register", upload.single("photo"), async (req, res) => {
-  console.log("Register endpoint hit");
-  console.log("Request body:", req.body);
-  console.log("File:", req.file);
-
   const { fullName, email, password } = req.body;
 
   if (!fullName || !email || !password) {
@@ -36,20 +51,17 @@ router.post("/register", upload.single("photo"), async (req, res) => {
       fullName,
       email,
       password: hashedPass,
-      photo: req.file?.filename || "", // optional photo
+      photo: req.file?.filename || "",
     });
 
     const savedUser = await newUser.save();
-    console.log("Saved User:", savedUser);
-
     res.status(201).json({ message: "User Registered Successfully" });
   } catch (err) {
-    console.error("Registration error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Retrieve all users Route
+// Login Route
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -59,19 +71,16 @@ router.post("/login", async (req, res) => {
 
   try {
     const user = await User.findOne({ email });
-    if (!user) {
+    if (!user)
       return res.status(400).json({ error: "Invalid email or password" });
-    }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
+    if (!isMatch)
       return res.status(400).json({ error: "Invalid email or password" });
-    }
 
-    // Generate JWT token
     const token = jwt.sign(
       { userId: user._id },
-      process.env.JWT_SECRET || codewithnasim,
+      process.env.JWT_SECRET || "codewithnasim",
       {
         expiresIn: "1h",
       }
@@ -88,8 +97,17 @@ router.post("/login", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Login error:", err);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Protected Route - Get All Users
+router.get("/users", verifyToken, async (req, res) => {
+  try {
+    const users = await User.find({}, "-password"); // exclude passwords
+    res.status(200).json(users);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch users" });
   }
 });
 
