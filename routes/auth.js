@@ -13,15 +13,12 @@ router.use((req, res, next) => {
 });
 
 // Register Route
-router.post("/register", async (req, res) => {
+router.post("/register", upload.single("photo"), async (req, res) => {
   console.log("Register endpoint hit");
   console.log("Request body:", req.body);
-  console.log("Parsed body:", req.body);
   console.log("File:", req.file);
 
   const { fullName, email, password } = req.body;
-
-  console.log("Password:", password);
 
   if (!fullName || !email || !password) {
     return res.status(400).json({ error: "All fields are required" });
@@ -34,19 +31,16 @@ router.post("/register", async (req, res) => {
     }
 
     const hashedPass = await bcrypt.hash(password, 10);
+
     const newUser = new User({
       fullName,
       email,
       password: hashedPass,
-      photo: req.file?.filename || "",
+      photo: req.file?.filename || "", // optional photo
     });
 
-    try {
-      const savedUser = await newUser.save();
-      console.log("Saved User:", savedUser);
-    } catch (err) {
-      console.error("Error saving user:", err);
-    }
+    const savedUser = await newUser.save();
+    console.log("Saved User:", savedUser);
 
     res.status(201).json({ message: "User Registered Successfully" });
   } catch (err) {
@@ -56,12 +50,45 @@ router.post("/register", async (req, res) => {
 });
 
 // Retrieve all users Route
-router.get("/users", async (req, res) => {
+router.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+
   try {
-    const users = await User.find(); // Retrieve all users from the database
-    res.status(200).json(users); // Send the users as a JSON response
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ error: "Invalid email or password" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: "Invalid email or password" });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET || codewithnasim,
+      {
+        expiresIn: "1h",
+      }
+    );
+
+    res.status(200).json({
+      message: "Login successful",
+      token,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        photo: user.photo,
+      },
+    });
   } catch (err) {
-    console.error("Error retrieving users:", err);
+    console.error("Login error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
