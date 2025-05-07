@@ -2,10 +2,18 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
+const fs = require("fs");
 const authRoutes = require("./routes/auth");
 require("dotenv").config();
 
 const app = express();
+
+// Ensure the uploads directory exists
+const uploadsDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+  console.log("Uploads directory created");
+}
 
 // Middleware
 app.use(cors());

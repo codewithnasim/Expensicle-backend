@@ -13,12 +13,15 @@ router.use((req, res, next) => {
 });
 
 // Register Route
-router.post("/register", upload.single("photo"), async (req, res) => {
+router.post("/register", async (req, res) => {
   console.log("Register endpoint hit");
   console.log("Request body:", req.body);
+  console.log("Parsed body:", req.body);
   console.log("File:", req.file);
 
   const { fullName, email, password } = req.body;
+
+  console.log("Password:", password);
 
   if (!fullName || !email || !password) {
     return res.status(400).json({ error: "All fields are required" });
@@ -38,8 +41,13 @@ router.post("/register", upload.single("photo"), async (req, res) => {
       photo: req.file?.filename || "",
     });
 
-    const savedUser = await newUser.save();
-    console.log("Saved User:", savedUser);
+    try {
+      const savedUser = await newUser.save();
+      console.log("Saved User:", savedUser);
+    } catch (err) {
+      console.error("Error saving user:", err);
+    }
+
     res.status(201).json({ message: "User Registered Successfully" });
   } catch (err) {
     console.error("Registration error:", err);
