@@ -41,6 +41,7 @@ router.post("/register", upload.single("photo"), async (req, res) => {
 
   try {
     const existingUser = await User.findOne({ email });
+    console.log("User Found:", existingUser);
     if (existingUser) {
       return res.status(400).json({ error: "Email already exists" });
     }
@@ -63,6 +64,8 @@ router.post("/register", upload.single("photo"), async (req, res) => {
 
 // Login Route
 router.post("/login", async (req, res) => {
+  console.log("Login Request Body:", req.body);
+
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -71,10 +74,12 @@ router.post("/login", async (req, res) => {
 
   try {
     const user = await User.findOne({ email });
+    console.log("User Found:", user);
     if (!user)
       return res.status(400).json({ error: "Invalid email or password" });
 
     const isMatch = await bcrypt.compare(password, user.password);
+    console.log("Password Match:", isMatch);
     if (!isMatch)
       return res.status(400).json({ error: "Invalid email or password" });
 
@@ -85,6 +90,7 @@ router.post("/login", async (req, res) => {
         expiresIn: "1h",
       }
     );
+    console.log("Generated Token:", token);
 
     res.status(200).json({
       message: "Login successful",
