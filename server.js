@@ -36,6 +36,11 @@ app.get("/", (req, res) => {
 
 // Routes
 app.use("/auth", authRoutes);
+app.get('/expenses', authenticateToken, async (req, res) => {
+  const userId = req.user.id; // from token
+  const expenses = await Expense.find({ user: userId });
+  res.json(expenses);
+});
 
 // Connect to MongoDB
 mongoose
