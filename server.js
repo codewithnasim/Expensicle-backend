@@ -4,6 +4,8 @@ const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
 const authRoutes = require("./routes/auth");
+const Expense = require("./models/Expense"); // Import the Expense model
+const authenticateToken = require("./middleware/authenticateToken"); // Import your token middleware
 require("dotenv").config();
 
 const app = express();
@@ -36,10 +38,17 @@ app.get("/", (req, res) => {
 
 // Routes
 app.use("/auth", authRoutes);
-app.get('/expenses', authenticateToken, async (req, res) => {
-  const userId = req.user.id; // from token
-  const expenses = await Expense.find({ user: userId });
-  res.json(expenses);
+
+// Add the /expenses route directly here
+app.get("/expenses", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id; // Extracted from the token by the middleware
+    const expenses = await Expense.find({ user: userId });
+    res.json(expenses);
+  } catch (err) {
+    console.error("Error fetching expenses:", err);
+    res.status(500).json({ error: "Failed to fetch expenses" });
+  }
 });
 
 // Connect to MongoDB
