@@ -92,9 +92,15 @@ router.post("/login", async (req, res) => {
     );
     console.log("Generated Token:", token);
 
+    res.cookie("token", token, {
+      httpOnly: true, // Prevents client-side scripts from accessing the cookie
+      secure: process.env.NODE_ENV === "production", // Ensures cookies are sent over HTTPS in production
+      sameSite: "Strict", // Prevents the cookie from being sent with cross-site requests
+      maxAge: 3600000, // 1 hour
+    });
+
     res.status(200).json({
       message: "Login successful",
-      token,
       user: {
         id: user._id,
         fullName: user.fullName,
