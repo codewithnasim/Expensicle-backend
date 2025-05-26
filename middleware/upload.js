@@ -3,29 +3,23 @@ const path = require("path");
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/"); // Ensure this directory exists
+    cb(null, "uploads"); // Save files to the 'uploads' directory
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(
-      null,
-      file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname)
-    );
+    cb(null, `${Date.now()}-${file.originalname}`); // Generate a unique filename
   },
 });
 
-const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith("image/")) {
-    cb(null, true);
-  } else {
-    cb(new Error("Not an image! Please upload an image."), false);
-  }
-};
+const upload = multer({ storage });
 
-const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+// Example route for uploading a file
+app.post("/api/upload", upload.single("photo"), (req, res) => {
+  try {
+    res.json({ photo: req.file.filename }); // Return the filename to the frontend
+  } catch (error) {
+    console.error("Error uploading file:", error);
+    res.status(500).json({ error: "Failed to upload file" });
+  }
 });
 
 module.exports = upload;
