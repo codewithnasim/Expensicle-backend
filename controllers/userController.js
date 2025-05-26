@@ -225,17 +225,23 @@ exports.uploadPhoto = async (req, res) => {
 exports.exportData = async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log('Exporting data for user:', userId);
     
     // Get user data
     const user = await User.findById(userId).select('-password');
     if (!user) {
+      console.log('User not found for export:', userId);
       return res.status(404).json({ message: 'User not found' });
     }
+
+    console.log('Found user:', { id: user._id, email: user.email });
 
     // Get user's transactions
     const transactions = await Transaction.find({ user: userId })
       .sort({ date: -1 })
       .populate('category');
+
+    console.log('Found transactions:', transactions.length);
 
     // Create a new workbook
     const workbook = new ExcelJS.Workbook();
@@ -289,6 +295,8 @@ exports.exportData = async (req, res) => {
       sheet.getRow(1).font = { color: { argb: 'FFFFFFFF' } };
     });
 
+    console.log('Excel file created successfully');
+
     // Set response headers
     res.setHeader(
       'Content-Type',
@@ -303,8 +311,13 @@ exports.exportData = async (req, res) => {
     await workbook.xlsx.write(res);
     res.end();
 
+    console.log('Export completed successfully');
+
   } catch (error) {
     console.error('Error exporting data:', error);
-    res.status(500).json({ message: 'Error exporting data' });
+    res.status(500).json({ 
+      message: 'Error exporting data',
+      error: error.message 
+    });
   }
 };
