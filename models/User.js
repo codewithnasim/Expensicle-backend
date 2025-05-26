@@ -16,11 +16,13 @@ const userSchema = new mongoose.Schema({
     required: true 
   },
   photo: { 
-    type: String 
+    type: String,
+    default: null
   },
   // Adding new fields for the expense tracking features
   currencyPreference: {
     type: String,
+    enum: ['INR', 'USD', 'EUR', 'GBP', 'JPY'],
     default: 'INR'
   },
   darkMode: {
@@ -29,7 +31,8 @@ const userSchema = new mongoose.Schema({
   },
   monthlyBudget: {
     type: Number,
-    default: 10000
+    default: 10000,
+    min: 0
   },
   createdAt: {
     type: Date,
