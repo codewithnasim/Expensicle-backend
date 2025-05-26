@@ -91,8 +91,6 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/user', userRoutes);
 
 
-
-
 // Add this with other route middlewares
 app.use('/api/categories', categoryRoutes);
 const PORT = process.env.PORT || 5000;
