@@ -1,11 +1,12 @@
 // Correct server.js setup
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const connectDB = require('./config/db.js');
 const authRoutes = require('./routes/authRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const userRoutes = require('./routes/userRoutes');
-const categoryRoutes = require('./routes/categoryRoutes'); // Make sure this exists
+const categoryRoutes = require('./routes/categoryRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -25,14 +26,17 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// Serve static files from uploads directory
+app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/user', userRoutes);
-app.use('/api/categories', categoryRoutes); // This is likely line 91
+app.use('/api/categories', categoryRoutes);
 
 // Error Handler
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log());

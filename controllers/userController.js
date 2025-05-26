@@ -8,7 +8,7 @@ const ExcelJS = require('exceljs');
 // Configure multer for file upload
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = 'uploads/';
+    const uploadDir = path.join(__dirname, 'uploads');
     // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -47,6 +47,15 @@ exports.updateSettings = async (req, res) => {
       user: req.user
     });
 
+    // Map currency symbols to codes
+    const currencyMap = {
+      '₹': 'INR',
+      '$': 'USD',
+      '€': 'EUR',
+      '£': 'GBP',
+      '¥': 'JPY'
+    };
+
     // Validate currency
     const validCurrencies = ['₹', '$', '€', '£', '¥'];
     if (currency && !validCurrencies.includes(currency)) {
@@ -65,7 +74,7 @@ exports.updateSettings = async (req, res) => {
 
     const updateData = {};
     if (darkMode !== undefined) updateData.darkMode = darkMode;
-    if (currency) updateData.currencyPreference = currency;
+    if (currency) updateData.currencyPreference = currencyMap[currency];
     if (monthlyBudget) updateData.monthlyBudget = monthlyBudget;
 
     console.log('Updating user with data:', updateData);
@@ -92,7 +101,7 @@ exports.updateSettings = async (req, res) => {
       message: 'Settings updated successfully',
       settings: {
         darkMode: user.darkMode,
-        currency: user.currencyPreference,
+        currency: currency, // Send back the symbol for frontend display
         monthlyBudget: user.monthlyBudget
       }
     });
