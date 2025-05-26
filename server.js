@@ -15,7 +15,7 @@ connectDB();
 
 // CORS Configuration
 const corsOptions = {
-  origin: ['http://localhost:3000', 'exp://localhost:19000', 'exp://192.168.1.*:19000'],
+  origin: '*', // Allow all origins for development
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
