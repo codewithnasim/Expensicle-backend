@@ -1,6 +1,15 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+// Currency code to symbol mapping
+const currencySymbols = {
+  'INR': '₹',
+  'USD': '$',
+  'EUR': '€',
+  'GBP': '£',
+  'JPY': '¥'
+};
+
 // Generate tokens
 const generateTokens = (user) => {
   // Access token expires in 1 hour
@@ -89,7 +98,7 @@ exports.login = async (req, res) => {
         email: user.email,
         fullName: user.fullName,
         photo: user.photo,
-        currencyPreference: user.currencyPreference,
+        currencyPreference: currencySymbols[user.currencyPreference] || '₹', // Convert code to symbol
         darkMode: user.darkMode,
         monthlyBudget: user.monthlyBudget
       }
