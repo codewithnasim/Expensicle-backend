@@ -38,11 +38,23 @@ const upload = multer({
 exports.updateSettings = async (req, res) => {
   try {
     const { darkMode, currency, monthlyBudget } = req.body;
+    const userId = req.user.id;
     
+    console.log('Update settings request:', {
+      userId,
+      body: req.body,
+      user: req.user
+    });
+
     // Validate currency
-    const validCurrencies = ['INR', 'USD', 'EUR', 'GBP', 'JPY'];
+    const validCurrencies = ['₹', '$', '€', '£', '¥'];
     if (currency && !validCurrencies.includes(currency)) {
-      return res.status(400).json({ message: 'Invalid currency' });
+      console.log('Invalid currency:', currency);
+      return res.status(400).json({ 
+        message: 'Invalid currency',
+        received: currency,
+        valid: validCurrencies 
+      });
     }
 
     // Validate monthly budget
@@ -55,15 +67,25 @@ exports.updateSettings = async (req, res) => {
     if (currency) updateData.currencyPreference = currency;
     if (monthlyBudget) updateData.monthlyBudget = monthlyBudget;
 
+    console.log('Updating user with data:', updateData);
+
     const user = await User.findByIdAndUpdate(
-      req.user.id,
-      updateData,
-      { new: true }
-    ).select('darkMode currencyPreference monthlyBudget');
+      userId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).select('-password');
 
     if (!user) {
+      console.log('User not found with ID:', userId);
       return res.status(404).json({ message: 'User not found' });
     }
+
+    console.log('User updated successfully:', {
+      id: user._id,
+      currencyPreference: user.currencyPreference,
+      darkMode: user.darkMode,
+      monthlyBudget: user.monthlyBudget
+    });
 
     res.json({
       message: 'Settings updated successfully',
@@ -75,7 +97,10 @@ exports.updateSettings = async (req, res) => {
     });
   } catch (err) {
     console.error('Error updating settings:', err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ 
+      message: 'Server error',
+      error: err.message 
+    });
   }
 };
 
@@ -104,11 +129,13 @@ exports.getSettings = async (req, res) => {
 exports.updateName = async (req, res) => {
   try {
     const { fullName } = req.body;
-    const userId = req.user.id;
+    const userId = req.user.id;  // This comes from the token
 
     if (!fullName || fullName.trim() === '') {
       return res.status(400).json({ message: 'Name is required' });
     }
+
+    console.log('Updating name for user:', userId);  // Add logging
 
     const user = await User.findByIdAndUpdate(
       userId,
@@ -117,8 +144,11 @@ exports.updateName = async (req, res) => {
     ).select('-password');
 
     if (!user) {
+      console.log('User not found with ID:', userId);  // Add logging
       return res.status(404).json({ message: 'User not found' });
     }
+
+    console.log('User updated successfully:', user);  // Add logging
 
     res.json({
       message: 'Name updated successfully',
