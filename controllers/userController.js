@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Transaction = require('../models/Transaction');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -168,7 +169,11 @@ exports.updateName = async (req, res) => {
 // Upload user photo
 exports.uploadPhoto = async (req, res) => {
   upload(req, res, async function (err) {
-    if (err) {
+    if (err instanceof multer.MulterError) {
+      console.error('Multer error:', err);
+      return res.status(400).json({ message: err.message });
+    } else if (err) {
+      console.error('Upload error:', err);
       return res.status(400).json({ message: err.message });
     }
 
@@ -178,7 +183,20 @@ exports.uploadPhoto = async (req, res) => {
 
     try {
       const userId = req.user.id;
+      console.log('Uploading photo for user:', userId);
+
+      // Verify user exists before proceeding
+      const existingUser = await User.findById(userId);
+      if (!existingUser) {
+        // Delete uploaded file if user not found
+        if (req.file.path) {
+          fs.unlinkSync(req.file.path);
+        }
+        return res.status(404).json({ message: 'User not found' });
+      }
+
       const photoUrl = req.file.filename;
+      console.log('New photo filename:', photoUrl);
 
       const user = await User.findByIdAndUpdate(
         userId,
@@ -186,19 +204,15 @@ exports.uploadPhoto = async (req, res) => {
         { new: true }
       ).select('-password');
 
-      if (!user) {
-        // Delete uploaded file if user not found
-        fs.unlinkSync(req.file.path);
-        return res.status(404).json({ message: 'User not found' });
-      }
-
       // Delete old photo if exists
-      if (user.photo && user.photo !== photoUrl) {
-        const oldPhotoPath = path.join('uploads', user.photo);
+      if (existingUser.photo && existingUser.photo !== photoUrl) {
+        const oldPhotoPath = path.join('uploads', existingUser.photo);
         if (fs.existsSync(oldPhotoPath)) {
           fs.unlinkSync(oldPhotoPath);
         }
       }
+
+      console.log('Photo upload successful for user:', userId);
 
       res.json({
         message: 'Photo uploaded successfully',
@@ -212,11 +226,11 @@ exports.uploadPhoto = async (req, res) => {
       });
     } catch (error) {
       // Delete uploaded file if error occurs
-      if (req.file) {
+      if (req.file && req.file.path) {
         fs.unlinkSync(req.file.path);
       }
       console.error('Error uploading photo:', error);
-      res.status(500).json({ message: 'Server error' });
+      res.status(500).json({ message: 'Server error while uploading photo' });
     }
   });
 };

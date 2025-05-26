@@ -63,37 +63,40 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check if user exists
+    // Find user
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ error: 'Invalid credentials' });
+      return res.status(400).json({ error: "Invalid credentials" });
     }
 
     // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(400).json({ error: 'Invalid credentials' });
+      return res.status(400).json({ error: "Invalid credentials" });
     }
 
-    // Generate tokens
-    const { accessToken, refreshToken } = generateTokens(user);
+    // Generate token with 30 day expiration
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
 
-    res.json({ 
-      token: accessToken,
-      refreshToken,
+    res.json({
+      token,
       user: {
         id: user._id,
-        fullName: user.fullName,
         email: user.email,
+        fullName: user.fullName,
         photo: user.photo,
+        currencyPreference: user.currencyPreference,
         darkMode: user.darkMode,
-        monthlyBudget: user.monthlyBudget,
-        currencyPreference: user.currencyPreference
+        monthlyBudget: user.monthlyBudget
       }
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Login error:', err);
+    res.status(500).json({ error: "Server error" });
   }
 };
 

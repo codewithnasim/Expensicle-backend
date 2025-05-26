@@ -5,6 +5,12 @@ exports.addTransaction = async (req, res) => {
   try {
     const { description, amount, date, category, type, notes } = req.body;
 
+    // Add session validation
+    if (!req.user || !req.user.id) {
+      console.error('Invalid user session');
+      return res.status(401).json({ error: "Invalid session" });
+    }
+
     if (!description || !amount || !date || !category || !type) {
       return res.status(400).json({ error: "All fields are required" });
     }
@@ -22,7 +28,7 @@ exports.addTransaction = async (req, res) => {
     await newTransaction.save();
     res.status(201).json(newTransaction);
   } catch (err) {
-    console.error(err);
+    console.error('Error in addTransaction:', err);
     res.status(500).json({ error: "Server error" });
   }
 };
@@ -30,12 +36,22 @@ exports.addTransaction = async (req, res) => {
 // Get all transactions for user
 exports.getTransactions = async (req, res) => {
   try {
-    const transactions = await Transaction.find({ user: req.user.id }).select(
-      "_id description amount date category type notes"
-    );
+    console.log('Getting transactions for user:', req.user.id);
+    
+    // Add a check for session validity
+    if (!req.user || !req.user.id) {
+      console.error('Invalid user session');
+      return res.status(401).json({ error: "Invalid session" });
+    }
+    
+    const transactions = await Transaction.find({ user: req.user.id })
+      .select('_id description amount date category type notes')
+      .sort({ date: -1 }); // Sort by date descending
+    
+    console.log(`Found ${transactions.length} transactions`);
     res.json(transactions);
   } catch (err) {
-    console.error(err);
+    console.error('Error in getTransactions:', err);
     res.status(500).json({ error: "Server error" });
   }
 };
