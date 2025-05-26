@@ -4,7 +4,11 @@ const Transaction = require('../models/Transaction');
 exports.addTransaction = async (req, res) => {
   try {
     const { description, amount, date, category, type, notes } = req.body;
-    
+
+    if (!description || !amount || !date || !category || !type) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
     const newTransaction = new Transaction({
       user: req.user.id,
       description,
@@ -12,47 +16,27 @@ exports.addTransaction = async (req, res) => {
       date,
       category,
       type,
-      notes
+      notes,
     });
 
     await newTransaction.save();
     res.status(201).json(newTransaction);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: "Server error" });
   }
 };
 
 // Get all transactions for user
 exports.getTransactions = async (req, res) => {
   try {
-    const { period, type } = req.query;
-    let query = { user: req.user.id };
-
-    if (type && type !== 'all') {
-      query.type = type;
-    }
-
-    // Filter by period
-    if (period) {
-      const dateFilter = new Date();
-      
-      if (period === 'week') {
-        dateFilter.setDate(dateFilter.getDate() - 7);
-      } else if (period === 'month') {
-        dateFilter.setMonth(dateFilter.getMonth() - 1);
-      } else if (period === 'year') {
-        dateFilter.setFullYear(dateFilter.getFullYear() - 1);
-      }
-
-      query.date = { $gte: dateFilter };
-    }
-
-    const transactions = await Transaction.find(query).sort({ date: -1 });
+    const transactions = await Transaction.find({ user: req.user.id }).select(
+      "_id description amount date category type notes"
+    );
     res.json(transactions);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: "Server error" });
   }
 };
 
