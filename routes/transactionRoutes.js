@@ -12,4 +12,13 @@ router.get('/', auth, transactionController.getTransactions);
 // Get financial summary
 router.get('/summary', auth, transactionController.getFinancialSummary);
 
+// Update transaction
+router.put('/:id', auth, transactionController.updateTransaction);
+
+// Delete transaction
+router.delete('/:id', auth, transactionController.deleteTransaction);
+
+// Clear all transactions
+router.delete('/clear', auth, transactionController.clearAllTransactions);
+
 module.exports = router;

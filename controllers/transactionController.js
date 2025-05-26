@@ -40,6 +40,61 @@ exports.getTransactions = async (req, res) => {
   }
 };
 
+// Update transaction
+exports.updateTransaction = async (req, res) => {
+  try {
+    const { description, amount, date, category, type, notes } = req.body;
+    const transactionId = req.params.id;
+
+    // Find the transaction and verify ownership
+    const transaction = await Transaction.findOne({
+      _id: transactionId,
+      user: req.user.id
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ error: "Transaction not found" });
+    }
+
+    // Update fields
+    if (description) transaction.description = description;
+    if (amount) transaction.amount = amount;
+    if (date) transaction.date = date;
+    if (category) transaction.category = category;
+    if (type) transaction.type = type;
+    if (notes !== undefined) transaction.notes = notes;
+
+    await transaction.save();
+    res.json(transaction);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// Delete transaction
+exports.deleteTransaction = async (req, res) => {
+  try {
+    const transactionId = req.params.id;
+
+    // Find the transaction and verify ownership
+    const transaction = await Transaction.findOne({
+      _id: transactionId,
+      user: req.user.id
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ error: "Transaction not found" });
+    }
+
+    await transaction.deleteOne();
+    res.json({ message: "Transaction deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 // Get financial summary
 exports.getFinancialSummary = async (req, res) => {
   try {
@@ -87,5 +142,17 @@ exports.getFinancialSummary = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// Clear all transactions for user
+exports.clearAllTransactions = async (req, res) => {
+  try {
+    // Delete all transactions for the authenticated user
+    await Transaction.deleteMany({ user: req.user.id });
+    res.json({ message: "All transactions cleared successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
 };
