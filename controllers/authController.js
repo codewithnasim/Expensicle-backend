@@ -12,21 +12,49 @@ const currencySymbols = {
 
 // Generate tokens
 const generateTokens = (user) => {
+  if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
+    throw new Error('JWT secrets are not configured');
+  }
+
   // Access token expires in 1 hour
   const accessToken = jwt.sign(
-    { user: { id: user._id } },
+    { 
+      user: { 
+        id: user._id,
+        email: user.email,
+        fullName: user.fullName
+      },
+      type: 'access'
+    },
     process.env.JWT_SECRET,
-    { expiresIn: '1h' }
+    { 
+      expiresIn: '1h',
+      issuer: 'expense-tracker-api',
+      audience: ['web', 'mobile']
+    }
   );
 
   // Refresh token expires in 7 days
   const refreshToken = jwt.sign(
-    { user: { id: user._id } },
+    { 
+      user: { 
+        id: user._id,
+        type: 'refresh'
+      } 
+    },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: '7d' }
+    { 
+      expiresIn: '7d',
+      issuer: 'expense-tracker-api',
+      audience: ['web', 'mobile']
+    }
   );
 
-  return { accessToken, refreshToken };
+  return { 
+    accessToken, 
+    refreshToken,
+    expiresIn: 3600 // 1 hour in seconds
+  };
 };
 
 // Register new user
@@ -72,39 +100,76 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required',
+        code: 'MISSING_CREDENTIALS'
+      });
+    }
+
+    // Check if user exists
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ error: "Invalid credentials" });
+      console.log(`Login attempt failed: User with email ${email} not found`);
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid email or password',
+        code: 'INVALID_CREDENTIALS'
+      });
     }
 
     // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(400).json({ error: "Invalid credentials" });
+      console.log(`Login attempt failed: Invalid password for user ${user._id}`);
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid email or password',
+        code: 'INVALID_CREDENTIALS'
+      });
     }
 
-    // Generate token with 30 day expiration
-    const token = jwt.sign(
-      { id: user._id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    // Generate tokens
+    const { accessToken, refreshToken, expiresIn } = generateTokens(user);
 
-    res.json({
-      token,
-      user: {
-        id: user._id,
-        email: user.email,
-        fullName: user.fullName,
-        photo: user.photo,
-        currencyPreference: currencySymbols[user.currencyPreference] || '₹', // Convert code to symbol
-        darkMode: user.darkMode,
-        monthlyBudget: user.monthlyBudget
+    // Save refresh token to user
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    console.log(`User ${user._id} logged in successfully`);
+
+    // Prepare user data for response
+    const userData = {
+      id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      currencyPreference: user.currencyPreference || 'INR',
+      darkMode: user.darkMode || false,
+      monthlyBudget: user.monthlyBudget || 0
+    };
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        user: userData,
+        tokens: {
+          accessToken,
+          refreshToken,
+          expiresIn,
+          tokenType: 'Bearer'
+        }
       }
     });
-  } catch (err) {
-    console.error('Login error:', err);
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'An error occurred during login',
+      code: 'LOGIN_ERROR',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
     res.status(500).json({ error: "Server error" });
   }
 };

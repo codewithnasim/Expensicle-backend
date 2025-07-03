@@ -5,6 +5,7 @@ exports.addTransaction = async (req, res) => {
   try {
     const { description, amount, date, category, type, notes } = req.body;
 
+    
     // Add session validation
     if (!req.user || !req.user.id) {
       console.error('Invalid user session');

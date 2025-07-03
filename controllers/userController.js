@@ -1,51 +1,26 @@
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const ExcelJS = require('exceljs');
-
-// Configure multer for file upload
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, 'uploads');
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'user-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
-  },
-  fileFilter: function (req, file, cb) {
-    // Accept only image files
-    if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
-      return cb(new Error('Only image files are allowed!'), false);
-    }
-    cb(null, true);
-  }
-}).single('photo');
+const { generateTokens } = require('./authController');
 
 // Update user settings
 exports.updateSettings = async (req, res) => {
   try {
-    const { darkMode, currency, monthlyBudget } = req.body;
-    const userId = req.user.id;
-    
-    console.log('Update settings request:', {
-      userId,
+    console.log('Update settings request received:', {
       body: req.body,
       user: req.user
     });
+
+    const { darkMode, currency, monthlyBudget } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      console.error('No user ID in request');
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Authentication required' 
+      });
+    }
 
     // Map currency symbols to codes
     const currencyMap = {
@@ -53,55 +28,93 @@ exports.updateSettings = async (req, res) => {
       '$': 'USD',
       '€': 'EUR',
       '£': 'GBP',
-      '¥': 'JPY'
+      '¥': 'JPY',
+      // Also allow direct currency codes for backward compatibility
+      'INR': 'INR',
+      'USD': 'USD',
+      'EUR': 'EUR',
+      'GBP': 'GBP',
+      'JPY': 'JPY'
     };
 
-    // Validate currency
-    const validCurrencies = ['₹', '$', '€', '£', '¥'];
-    if (currency && !validCurrencies.includes(currency)) {
-      console.log('Invalid currency:', currency);
-      return res.status(400).json({ 
-        message: 'Invalid currency',
-        received: currency,
-        valid: validCurrencies 
-      });
-    }
-
-    // Validate monthly budget
-    if (monthlyBudget && (isNaN(monthlyBudget) || monthlyBudget < 0)) {
-      return res.status(400).json({ message: 'Invalid monthly budget' });
-    }
-
+    const validCurrencies = ['₹', '$', '€', '£', '¥', 'INR', 'USD', 'EUR', 'GBP', 'JPY'];
+    
+    // Prepare update data
     const updateData = {};
-    if (darkMode !== undefined) updateData.darkMode = darkMode;
-    if (currency) updateData.currencyPreference = currencyMap[currency];
-    if (monthlyBudget) updateData.monthlyBudget = monthlyBudget;
+    
+    // Handle dark mode
+    if (darkMode !== undefined) {
+      updateData.darkMode = darkMode;
+    }
 
-    console.log('Updating user with data:', updateData);
+    // Handle currency
+    if (currency !== undefined) {
+      if (!validCurrencies.includes(currency)) {
+        console.error('Invalid currency:', currency);
+        return res.status(400).json({ 
+          success: false,
+          message: 'Invalid currency',
+          received: currency,
+          valid: ['₹ (INR)', '$ (USD)', '€ (EUR)', '£ (GBP)', '¥ (JPY)']
+        });
+      }
+      // Convert symbol to code if needed
+      updateData.currencyPreference = currencyMap[currency] || currency;
+    }
+
+    // Handle monthly budget
+    if (monthlyBudget !== undefined) {
+      const budget = parseFloat(monthlyBudget);
+      if (isNaN(budget) || budget < 0) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Monthly budget must be a positive number' 
+        });
+      }
+      updateData.monthlyBudget = budget;
+    }
+
+    console.log('Updating user settings with data:', updateData);
 
     const user = await User.findByIdAndUpdate(
       userId,
       { $set: updateData },
-      { new: true, runValidators: true }
+      { 
+        new: true, 
+        runValidators: true,
+        context: 'query' // This is needed for validators to work with update
+      }
     ).select('-password');
 
     if (!user) {
-      console.log('User not found with ID:', userId);
-      return res.status(404).json({ message: 'User not found' });
+      console.error('User not found with ID:', userId);
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
 
-    console.log('User updated successfully:', {
-      id: user._id,
-      currencyPreference: user.currencyPreference,
+    console.log('Settings updated successfully for user:', user.email, {
       darkMode: user.darkMode,
+      currencyPreference: user.currencyPreference,
       monthlyBudget: user.monthlyBudget
     });
 
-    res.json({
+    // Get the currency symbol for the response
+    const currencyToSymbol = {
+      'INR': '₹',
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'JPY': '¥'
+    };
+
+    res.status(200).json({
+      success: true,
       message: 'Settings updated successfully',
       settings: {
         darkMode: user.darkMode,
-        currency: currency, // Send back the symbol for frontend display
+        currency: currencyToSymbol[user.currencyPreference] || user.currencyPreference,
         monthlyBudget: user.monthlyBudget
       }
     });
@@ -117,132 +130,153 @@ exports.updateSettings = async (req, res) => {
 // Get user settings
 exports.getSettings = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
-      .select('darkMode currencyPreference monthlyBudget');
+    console.log('Getting settings for user:', req.user?.id);
+    
+    const user = await User.findById(req.user?.id)
+      .select('darkMode currencyPreference monthlyBudget email fullName');
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      console.error('User not found with ID:', req.user?.id);
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
 
-    res.json({
-      darkMode: user.darkMode,
-      currency: user.currencyPreference,
-      monthlyBudget: user.monthlyBudget
+    // Map currency code to symbol for frontend
+    const currencyToSymbol = {
+      'INR': '₹',
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'JPY': '¥'
+    };
+
+    const settings = {
+      darkMode: user.darkMode || false,
+      currency: user.currencyPreference ? 
+        (currencyToSymbol[user.currencyPreference] || user.currencyPreference) : '₹',
+      monthlyBudget: user.monthlyBudget || 0,
+      email: user.email,
+      fullName: user.fullName
+    };
+
+    console.log('Returning settings:', settings);
+    
+    res.status(200).json({
+      success: true,
+      ...settings
     });
   } catch (err) {
     console.error('Error getting settings:', err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error retrieving settings',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 
 // Update user name
 exports.updateName = async (req, res) => {
   try {
+    console.log('Update name request received:', {
+      userId: req.user?.id,
+      body: req.body
+    });
+    
     const { fullName } = req.body;
-    const userId = req.user.id;  // This comes from the token
+    const userId = req.user?.id;
 
-    if (!fullName || fullName.trim() === '') {
-      return res.status(400).json({ message: 'Name is required' });
+    // Validate user ID
+    if (!userId) {
+      console.error('No user ID in request');
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Authentication required',
+        code: 'UNAUTHORIZED'
+      });
     }
 
-    console.log('Updating name for user:', userId);  // Add logging
+    // Validate fullName
+    if (!fullName || typeof fullName !== 'string' || fullName.trim() === '') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Please provide a valid name',
+        code: 'INVALID_NAME'
+      });
+    }
 
+    const trimmedName = fullName.trim();
+    
+    // Validate name length
+    if (trimmedName.length < 2 || trimmedName.length > 50) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Name must be between 2 and 50 characters',
+        code: 'INVALID_NAME_LENGTH'
+      });
+    }
+
+    console.log(`Updating name for user ${userId} to: ${trimmedName}`);
+
+    // Update user
     const user = await User.findByIdAndUpdate(
       userId,
-      { fullName: fullName.trim() },
-      { new: true }
-    ).select('-password');
+      { fullName: trimmedName },
+      { 
+        new: true, 
+        runValidators: true,
+        context: 'query' // Required for validators to work with update
+      }
+    ).select('-password -refreshToken');
 
     if (!user) {
-      console.log('User not found with ID:', userId);  // Add logging
-      return res.status(404).json({ message: 'User not found' });
+      console.error('User not found with ID:', userId);
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
     }
 
-    console.log('User updated successfully:', user);  // Add logging
+    console.log(`Name updated successfully for user: ${user.email}`);
 
-    res.json({
+    // Generate new tokens with updated user info
+    const { accessToken, refreshToken, expiresIn } = generateTokens(user);
+    
+    // Update refresh token in database
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
       message: 'Name updated successfully',
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        photo: user.photo
-      }
-    });
-  } catch (error) {
-    console.error('Error updating name:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-// Upload user photo
-exports.uploadPhoto = async (req, res) => {
-  upload(req, res, async function (err) {
-    if (err instanceof multer.MulterError) {
-      console.error('Multer error:', err);
-      return res.status(400).json({ message: err.message });
-    } else if (err) {
-      console.error('Upload error:', err);
-      return res.status(400).json({ message: err.message });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
-    }
-
-    try {
-      const userId = req.user.id;
-      console.log('Uploading photo for user:', userId);
-
-      // Verify user exists before proceeding
-      const existingUser = await User.findById(userId);
-      if (!existingUser) {
-        // Delete uploaded file if user not found
-        if (req.file.path) {
-          fs.unlinkSync(req.file.path);
-        }
-        return res.status(404).json({ message: 'User not found' });
-      }
-
-      const photoUrl = req.file.filename;
-      console.log('New photo filename:', photoUrl);
-
-      const user = await User.findByIdAndUpdate(
-        userId,
-        { photo: photoUrl },
-        { new: true }
-      ).select('-password');
-
-      // Delete old photo if exists
-      if (existingUser.photo && existingUser.photo !== photoUrl) {
-        const oldPhotoPath = path.join('uploads', existingUser.photo);
-        if (fs.existsSync(oldPhotoPath)) {
-          fs.unlinkSync(oldPhotoPath);
-        }
-      }
-
-      console.log('Photo upload successful for user:', userId);
-
-      res.json({
-        message: 'Photo uploaded successfully',
-        photoUrl: photoUrl,
+      data: {
         user: {
           id: user._id,
           fullName: user.fullName,
           email: user.email,
-          photo: user.photo
+          currencyPreference: user.currencyPreference || 'INR',
+          darkMode: user.darkMode || false,
+          monthlyBudget: user.monthlyBudget || 0
+        },
+        tokens: {
+          accessToken,
+          refreshToken,
+          expiresIn,
+          tokenType: 'Bearer'
         }
-      });
-    } catch (error) {
-      // Delete uploaded file if error occurs
-      if (req.file && req.file.path) {
-        fs.unlinkSync(req.file.path);
       }
-      console.error('Error uploading photo:', error);
-      res.status(500).json({ message: 'Server error while uploading photo' });
+    });
+  } catch (error) {
+    console.error('Error in updateName:', error);
+    if (error.message === 'Failed to fetch') {
+      throw new Error('Network error. Please check your internet connection.');
     }
-  });
-};
+    throw error;
+  }
+}
 
 // Export user data to Excel
 exports.exportData = async (req, res) => {

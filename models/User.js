@@ -15,10 +15,6 @@ const userSchema = new mongoose.Schema({
     type: String, 
     required: true 
   },
-  photo: { 
-    type: String,
-    default: null
-  },
   // Adding new fields for the expense tracking features
   currencyPreference: {
     type: String,
