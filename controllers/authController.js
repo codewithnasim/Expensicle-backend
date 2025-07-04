@@ -101,10 +101,10 @@ exports.login = async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({
+      return res.status(401).json({ 
         success: false,
-        message: 'Email and password are required',
-        code: 'MISSING_CREDENTIALS'
+        message: 'Invalid email or password',
+        code: 'INVALID_CREDENTIALS'
       });
     }
 
@@ -215,6 +215,87 @@ exports.getUser = async (req, res) => {
     res.json(user);
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// Update user profile (name, email, etc)
+exports.updateProfile = async (req, res) => {
+  try {
+    const { fullName, email } = req.body;
+    
+    // Find the user
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Update fields if provided
+    if (fullName) user.fullName = fullName;
+    if (email) user.email = email;
+
+    await user.save();
+
+    // Generate new tokens with updated user info
+    const { accessToken, refreshToken } = generateTokens(user);
+
+    res.json({ 
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        currencyPreference: user.currencyPreference,
+        darkMode: user.darkMode,
+        monthlyBudget: user.monthlyBudget
+      },
+      accessToken,
+      refreshToken
+    });
+  } catch (err) {
+    console.error('Update profile error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// Update user's currency preference
+exports.updateCurrency = async (req, res) => {
+  try {
+    const { currency } = req.body;
+    
+    // Validate currency
+    const validCurrencies = ['INR', 'USD', 'EUR', 'GBP', 'JPY'];
+    if (!validCurrencies.includes(currency)) {
+      return res.status(400).json({ error: 'Invalid currency' });
+    }
+    
+    // Find and update user
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Update currency
+    user.currencyPreference = currency;
+    await user.save();
+
+    // Generate new tokens with updated user info
+    const { accessToken, refreshToken } = generateTokens(user);
+
+    res.json({ 
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        currencyPreference: user.currencyPreference,
+        darkMode: user.darkMode,
+        monthlyBudget: user.monthlyBudget
+      },
+      accessToken,
+      refreshToken,
+      message: 'Currency preference updated successfully'
+    });
+  } catch (err) {
+    console.error('Update currency error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 };

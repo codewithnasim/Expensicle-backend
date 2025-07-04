@@ -18,6 +18,16 @@ router.post('/login', authController.login);
 // @access  Public
 router.post('/refresh-token', authController.refreshToken);
 
+// @route   PUT api/auth/profile
+// @desc    Update user profile
+// @access  Private
+router.put('/profile', auth, authController.updateProfile);
+
+// @route   PUT api/auth/currency
+// @desc    Update user's currency preference
+// @access  Private
+router.put('/currency', auth, authController.updateCurrency);
+
 // @route   GET api/auth/user
 // @desc    Get logged in user
 // @access  Private
